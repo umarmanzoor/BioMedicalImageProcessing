@@ -1,5 +1,4 @@
 import numpy as np
-
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -9,13 +8,11 @@ import cv2
 from Configuration import imageDir, featureExtractionOutputPath, showImage, useCNNFeatures
 from PIL import Image as PImage
 from sklearn.cluster import KMeans
-
 # GoogleNET CNN
 from sklearn_theano.feature_extraction import GoogLeNetTransformer
 from sklearn_theano.feature_extraction.caffe.googlenet_layer_names import get_googlenet_layer_names
-
+# SVM
 from sklearn.metrics import precision_recall_fscore_support
-
 from sklearn import svm
 
 def computeCNNFeatures(regions, filename):
@@ -46,7 +43,6 @@ def computeCNNFeatures(regions, filename):
     np.savez_compressed(filenamePath, X_f)
     with gzip.open(filenamePath, 'w') as f:
         pickle.dump(X_f, f)
-    print X_f.shape
 
 def getCroppedRegion(imageId, bb):
     imagePath = imageDir + imageId
@@ -169,9 +165,6 @@ def computeSurfFeatures(regions):
     #Training SVM
     clf = svm.SVC()
     clf.fit(features, regionlabels)
-
     predicted = clf.predict(features)
-
     print precision_recall_fscore_support(regionlabels, predicted, average='weighted')
-
     print predicted
