@@ -21,9 +21,9 @@ if __name__ == '__main__':
     with gzip.open(trainPath, 'r') as f:
         trainRegions = pickle.load(f)
 
-    # testRegions = preprocessOutputPath + 'regions_test.pklz'
-    # with gzip.open(testRegions, 'r') as f:
-    #     regionsTest = pickle.load(f)
+    testPath = preprocessOutputPath + 'regions_test.pklz'
+    with gzip.open(testPath, 'r') as f:
+        testRegions = pickle.load(f)
 
     print '-' * 40
     print strftime("%Y-%m-%d %H:%M:%S")
@@ -31,7 +31,6 @@ if __name__ == '__main__':
 
     if (useCNNFeatures):
         computeCNNFeatures(trainRegions)
-        #concatenate_feat_batches(trainRegions, testRegions)
     else:
         # OpenCv Sift Features
         computeSurfFeatures(trainRegions)
