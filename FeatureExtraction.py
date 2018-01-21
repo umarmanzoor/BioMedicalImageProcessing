@@ -6,7 +6,8 @@ import matplotlib.patches as patches
 import cPickle as pickle
 import gzip
 import cv2
-from Configuration import imageDir, featureExtractionOutputPath, showImage
+from Configuration import imageDir, featureExtractionOutputPath, showImage, useCNNFeatures
+from PIL import Image as PImage
 from sklearn.cluster import KMeans
 # GoogleNET CNN
 from sklearn_theano.feature_extraction import GoogLeNetTransformer
@@ -14,7 +15,7 @@ from sklearn_theano.feature_extraction.caffe.googlenet_layer_names import get_go
 
 from sklearn import svm
 
-def computeCNNFeatures(regions):
+def computeCNNFeatures(regions, filename):
 
     # extract CNN features for regions
     gltr = GoogLeNetTransformer(force_reshape=True,
@@ -27,21 +28,20 @@ def computeCNNFeatures(regions):
         this_region_id = row['region_id']
         this_bb = [int(row['region_X']), int(row['region_Y']), int(row['region_W']), int(row['region_H'])]
         this_image_dim = [int(row['image_W']), int(row['image_H'])]
-        region_cropped = getCroppedRegion(this_image_id, this_bb)
+        (region_cropped, kp, desc) = getCroppedRegion(this_image_id, this_bb)
         X_i.append(region_cropped)
         ids.append(np.array([this_image_id, this_region_id]))
     # and back to the for loop
 
-    filename = featureExtractionOutputPath + 'CNNFeatures.npz'
-    array = np.array(X_i)
+    filenamePath = featureExtractionOutputPath + filename
     # Write features to file
     print "Writing features to file...!"
-    X = gltr.transform(array)
+    X = gltr.transform(X_i)
     X_ids = np.array(ids)
     X_f = np.hstack([X_ids,X])
 
-    np.savez_compressed(filename, X_f)
-    with gzip.open(filename, 'w') as f:
+    np.savez_compressed(filenamePath, X_f)
+    with gzip.open(filenamePath, 'w') as f:
         pickle.dump(X_f, f)
     print X_f.shape
 
@@ -55,9 +55,16 @@ def getCroppedRegion(imageId, bb):
     x,y,w,h = np.clip(np.array(bb), 0, np.max(img.shape))
     w = img.shape[1]-x if x+w >= img.shape[1] else w
     h = img.shape[0]-y if y+h >= img.shape[0] else h
-    regionCropped = np.array(imgGray[y:y+h,x:x+w])
-    # Surf key points and desc
-    kp, desc = gen_sift_features(regionCropped)
+    regionCropped = np.array(img[y:y+h,x:x+w])
+    if (useCNNFeatures):
+        xs = 224
+        ys = 224
+        pim = PImage.fromarray(regionCropped)
+        pim2 = pim.resize((xs,ys), PImage.ANTIALIAS)
+        regionCroppedCNN = np.array(pim2)
+    else:
+        # Surf key points and desc
+        kp, desc = gen_sift_features(regionCropped)
 
     if(showImage):
         show_sift_features(imgGray, img, kp)
@@ -71,7 +78,10 @@ def getCroppedRegion(imageId, bb):
         # Add the patch to the Axes
         ax.add_patch(rect)
         plt.show()
-    return (regionCropped, kp, desc)
+    if(useCNNFeatures):
+        return (regionCroppedCNN, [], [])
+    else:
+        return (regionCropped, kp, desc)
 
 def gen_sift_features(gray_img):
     sift = cv2.xfeatures2d.SIFT_create()

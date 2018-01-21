@@ -4,5 +4,5 @@ preprocessOutputPath = 'Output/PreprocessData/'
 imageDir = 'Data/Images/'
 featureExtractionOutputPath = 'Output/CNNFeatures/'
 preprocess = True
-useCNNFeatures = False
+useCNNFeatures = True
 showImage = False

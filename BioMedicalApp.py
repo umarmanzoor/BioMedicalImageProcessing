@@ -2,6 +2,9 @@ from time import strftime
 import cPickle as pickle
 import gzip
 
+import numpy as np
+from tqdm import tqdm
+
 from PreprocessData import preProcessRegions
 from Configuration import preprocess, preprocessOutputPath, useCNNFeatures
 
@@ -13,7 +16,7 @@ if __name__ == '__main__':
     if(preprocess):
         print 'Preprocessing Data...'
         preProcessRegions(True)
-        #preProcessRegions(False)
+        preProcessRegions(False)
         print 'Preprocessing Complete...'
 
     #load regions
@@ -21,17 +24,17 @@ if __name__ == '__main__':
     with gzip.open(trainPath, 'r') as f:
         trainRegions = pickle.load(f)
 
-    # testRegions = preprocessOutputPath + 'regions_test.pklz'
-    # with gzip.open(testRegions, 'r') as f:
-    #     regionsTest = pickle.load(f)
+    testPath = preprocessOutputPath + 'regions_test.pklz'
+    with gzip.open(testPath, 'r') as f:
+        testRegions = pickle.load(f)
 
     print '-' * 40
     print strftime("%Y-%m-%d %H:%M:%S")
     print "Extraction Starts..."
 
     if (useCNNFeatures):
-        computeCNNFeatures(trainRegions)
-        #concatenate_feat_batches(trainRegions, testRegions)
+        computeCNNFeatures(trainRegions, "CNNFeaturesTrain.npz")
+        computeCNNFeatures(testRegions, "CNNFeaturesTest.npz")
     else:
         # OpenCv Sift Features
         computeSurfFeatures(trainRegions)
