@@ -5,7 +5,8 @@ import matplotlib.patches as patches
 import cPickle as pickle
 import gzip
 import cv2
-from Configuration import imageDir, featureExtractionOutputPath, showImage, useCNNFeatures
+from Configuration import imageDir, featureExtractionCNNOutputPath, showImage, useCNNFeatures, \
+    featureExtractionSurfOutputPath, ClusterSize
 from PIL import Image as PImage
 from sklearn.cluster import KMeans
 # GoogleNET CNN
@@ -33,7 +34,7 @@ def computeCNNFeatures(regions, filename):
         ids.append(np.array([this_image_id, this_region_id]))
     # and back to the for loop
 
-    filenamePath = featureExtractionOutputPath + filename
+    filenamePath = featureExtractionCNNOutputPath + filename
     # Write features to file
     print "Writing features to file...!"
     X = gltr.transform(X_i)
@@ -98,7 +99,7 @@ def to_gray(color_img):
 def show_rgb_img(img):
     return plt.imshow(cv2.cvtColor(img, cv2.CV_32S))
 
-def computeSurfFeatures(regions):
+def computeSurfFeatures(trainRegions, testRegions):
     croppedRegions = []
     imageIds = []
     regionIds = []
@@ -108,8 +109,8 @@ def computeSurfFeatures(regions):
     allImageKP = []
     allImageKPDesc = []
     print '-' * 40
-    print "Calculating Surf KeyPoints..."
-    for n, row in tqdm(regions.iterrows(), total=len(regions)):
+    print "Calculating Surf KeyPoints for Clusters..."
+    for n, row in tqdm(trainRegions.iterrows(), total=len(trainRegions)):
         this_image_id = row['image_id']
         this_region_id = row['region_id']
         this_region_label = row['region_label']
@@ -119,7 +120,14 @@ def computeSurfFeatures(regions):
         croppedRegions.append(rC)
         imageIds.append(this_image_id)
         regionIds.append(this_region_id)
-        regionlabels.append(this_region_label)
+        labelCode = -1
+        if(this_region_label=="Axon"):
+            labelCode = 0
+        elif(this_region_label=="Myelin"):
+            labelCode = 1
+        elif(this_region_label=="Schwann"):
+            labelCode = 2
+        regionlabels.append(labelCode)
         keypoints.append(kp)
         if len(kp)>0:
             keypointsDesc.append(desc)
@@ -135,7 +143,7 @@ def computeSurfFeatures(regions):
     print "Generating Clusters..."
     # KMean
     # Number of clusters
-    kmeans = KMeans(n_clusters=100)
+    kmeans = KMeans(n_clusters=ClusterSize)
     # Fitting the input data
     kmeans = kmeans.fit(allImageKPDesc)
     # Getting the cluster labels
@@ -145,26 +153,65 @@ def computeSurfFeatures(regions):
 
     #Feature Vector Generation
     print '-' * 40
-    print "Generating Feature Vector..."
-    features = []
-    count = 0
+    print "Generating Feature Vector for Training Set..."
+    trainFeatures = []
     for i in range(len(keypointsDesc)):
         if len(keypointsDesc[i]) > 0:
             indexes = kmeans.predict(keypointsDesc[i])
-            kpFeature = [0] * 100
+            kpFeature = [0] * (ClusterSize + 1)
             for j in range(len(indexes)):
                 kpFeature[indexes[j]] = kpFeature[indexes[j]] + 1
-            features.append(kpFeature)
         else:
-            kpFeature = [0] * 100
-            features.append(kpFeature)
-            count += 1
-            print i
+            kpFeature = [0] * (ClusterSize + 1)
+        kpFeature[ClusterSize] = regionlabels[i]
+        trainFeatures.append(kpFeature)
 
-    print count
-    #Training SVM
-    clf = svm.SVC()
-    clf.fit(features, regionlabels)
-    predicted = clf.predict(features)
-    print precision_recall_fscore_support(regionlabels, predicted, average='weighted')
-    print predicted
+    print "Saving Training set Features Vector..."
+
+    filenamePath = featureExtractionSurfOutputPath + "SiftFeaturesTrain.npz"
+    np.savez_compressed(filenamePath, trainFeatures)
+    with gzip.open(filenamePath, 'w') as f:
+        pickle.dump(trainFeatures, f)
+
+    # Test set Features extraction
+    regionlabels = []
+    keypointsDesc =[]
+    for n, row in tqdm(testRegions.iterrows(), total=len(testRegions)):
+        this_region_label = row['region_label']
+        this_bb = [int(row['region_X']), int(row['region_Y']), int(row['region_W']), int(row['region_H'])]
+        (rC, kp, desc) = getCroppedRegion(this_image_id, this_bb)
+        labelCode = -1
+        if(this_region_label=="Axon"):
+            labelCode = 0
+        elif(this_region_label=="Myelin"):
+            labelCode = 1
+        elif(this_region_label=="Schwann"):
+            labelCode = 2
+        regionlabels.append(labelCode)
+        if len(kp)>0:
+            keypointsDesc.append(desc)
+        else:
+            keypointsDesc.append([])
+
+    print '-' * 40
+    print "Generating Feature Vector for Test set..."
+    testFeatures = []
+    for i in range(len(keypointsDesc)):
+        if len(keypointsDesc[i]) > 0:
+            indexes = kmeans.predict(keypointsDesc[i])
+            kpFeature = [0] * 101
+            for j in range(len(indexes)):
+                kpFeature[indexes[j]] = kpFeature[indexes[j]] + 1
+        else:
+            kpFeature = [0] * 101
+        kpFeature[100] = regionlabels[i]
+        testFeatures.append(kpFeature)
+
+    print "Saving Test set Surf Features..."
+
+    filenamePath = featureExtractionSurfOutputPath + "SiftFeaturesTest.npz"
+    np.savez_compressed(filenamePath, testFeatures)
+    with gzip.open(filenamePath, 'w') as f:
+        pickle.dump(testFeatures, f)
+
+    print "Done..."

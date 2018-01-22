@@ -9,7 +9,7 @@ from PreprocessData import preProcessRegions
 from Configuration import preprocess, preprocessOutputPath, useCNNFeatures, computeFeature
 
 from FeatureExtraction import computeCNNFeatures, computeSurfFeatures
-from DataClassification import loadRegionFeatures
+from DataClassification import predictUsingCNNFeatures, predictUsingSurfFeatures
 
 if __name__ == '__main__':
 
@@ -39,10 +39,14 @@ if __name__ == '__main__':
             computeCNNFeatures(testRegions, "CNNFeaturesTest.npz")
         else:
             # OpenCv Sift Features
-            computeSurfFeatures(trainRegions)
+            computeSurfFeatures(trainRegions, testRegions)
 
         print '-' * 40
         print 'Extraction Complete...'
         print strftime("%Y-%m-%d %H:%M:%S")
 
-    loadRegionFeatures()
+    # Classification
+    if(useCNNFeatures):
+        predictUsingCNNFeatures()
+    else:
+        predictUsingSurfFeatures()
